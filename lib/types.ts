@@ -2,6 +2,14 @@ export type Visibility = "private" | "open";
 
 export type BookingStatus = "tbd" | "pending" | "booked";
 
+export type RequestMode = "private" | "shared";
+
+export type RequestStatus = "sent" | "accepted" | "declined" | "needs_partner";
+
+export type EnquiryStatus = "pending" | "proposed" | "confirmed" | "declined";
+
+export type FollowUpKind = "discussion" | "introduction" | "none";
+
 export type Verse = {
   reference: string;
   text: string;
@@ -43,6 +51,7 @@ export type ChurchRecord = {
   inviteCode: string;
   ownerInviteCode: string;
   catchment: CatchmentPin[];
+  fictional?: boolean;
 };
 
 export type CinemaRecord = {
@@ -57,18 +66,90 @@ export type CinemaRecord = {
 export type ScreeningRecord = {
   id: string;
   hostChurchId: string;
+  hostedBy?: string;
   cinemaId: string | null;
   title: string;
   durationMinutes: number;
   videoUrl: string;
   verses: Verse[];
   bookingStatus: BookingStatus;
+  screeningMode: RequestMode;
+  requestStatus: RequestStatus;
+  expectedHeadcount: number;
   startsAt: string;
   timeZone: string;
   capacity: number;
   visibility: Visibility;
   joinToken: string;
 };
+
+export type CandidateStatus = "considering" | "enquired" | "quoted" | "unavailable" | "chosen";
+
+export type CinemaCandidate = {
+  cinemaId: string;
+  status: CandidateStatus;
+  quote: string;
+  note: string;
+};
+
+export type ChurchRequestRecord = {
+  id: string;
+  reference: string;
+  enquiryId: string;
+  churchId: string;
+  mode: RequestMode;
+  expectedHeadcount: number;
+  preferredDates: string[];
+  preferredTime: string;
+  cinemaPlaceId: string;
+  candidates: CinemaCandidate[];
+  accessibilityNeeds: string;
+  coordinatorName: string;
+  coordinatorPhone: string;
+  coordinatorEmail: string;
+  hostedBy?: string;
+  createdAt: string;
+};
+
+export type EnquiryRecord = {
+  id: string;
+  reference: string;
+  mode: RequestMode;
+  cinemaPlaceId: string;
+  weekendKey: string;
+  status: EnquiryStatus;
+  proposedHall: string;
+  proposedWhen: string;
+  proposedTerms: string;
+  verifiedAvailability: boolean;
+  verifiedRights: boolean;
+  verifiedTerms: boolean;
+  screeningId: string | null;
+};
+
+export type FollowUpView = {
+  id: string;
+  kind: FollowUpKind;
+  shareContact: boolean;
+  personName: string;
+  name: string;
+  email: string;
+  phone: string;
+  mine: boolean;
+};
+
+export type FollowUpRecord = {
+  id: string;
+  eventId: string;
+  userId: string;
+  kind: FollowUpKind;
+  shareContact: boolean;
+  name: string;
+  email: string;
+  phone: string;
+};
+
+export type AttendanceStatus = "requested" | "accepted" | "declined";
 
 export type PartyRecord = {
   id: string;
@@ -77,6 +158,9 @@ export type PartyRecord = {
   churchId: string | null;
   members: number;
   guests: number;
+  status?: AttendanceStatus;
+  proposedMembers?: number | null;
+  proposedGuests?: number | null;
 };
 
 export type PublicUser = {
@@ -84,6 +168,7 @@ export type PublicUser = {
   name: string;
   email: string;
   churchId: string | null;
+  isChosenSg: boolean;
 };
 
 export type PublicChurch = {
@@ -97,6 +182,49 @@ export type PublicChurch = {
   inviteCode: string;
   ownerInviteCode: string;
   catchment: CatchmentPin[];
+  fictional: boolean;
+};
+
+export type EnquiryRequestView = {
+  id: string;
+  reference: string;
+  churchId: string;
+  churchName: string;
+  fictional: boolean;
+  expectedHeadcount: number;
+  preferredDates: string[];
+  preferredTime: string;
+  accessibilityNeeds: string;
+  candidates: CinemaCandidate[];
+  coordinatorName: string;
+  coordinatorPhone: string;
+  coordinatorEmail: string;
+  hostedBy: string;
+  createdAt: string;
+};
+
+export type EnquiryView = {
+  id: string;
+  reference: string;
+  mode: RequestMode;
+  cinemaName: string;
+  cinemaAddress: string;
+  hasHall: boolean;
+  weekendKey: string;
+  status: EnquiryStatus;
+  expectedTotal: number;
+  proposedHall: string;
+  proposedWhen: string;
+  proposedTerms: string;
+  verifiedAvailability: boolean;
+  verifiedRights: boolean;
+  verifiedTerms: boolean;
+  next: string;
+  screeningId: string | null;
+  published: boolean;
+  joinPath: string | null;
+  mailto: string | null;
+  requests: EnquiryRequestView[];
 };
 
 export type PartyView = {
@@ -107,6 +235,9 @@ export type PartyView = {
   churchName: string | null;
   members: number;
   guests: number;
+  status: AttendanceStatus;
+  proposedMembers: number | null;
+  proposedGuests: number | null;
 };
 
 export type CinemaView = {
@@ -133,6 +264,9 @@ export type EventView = {
   embedUrl: string | null;
   verses: Verse[];
   bookingStatus: BookingStatus;
+  screeningMode: RequestMode;
+  requestStatus: RequestStatus;
+  expectedHeadcount: number;
   startsAt: string;
   timeZone: string;
   capacity: number;

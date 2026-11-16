@@ -5,8 +5,10 @@ import {
   addParty,
   addPartyByToken,
   claimChurch,
+  decideAttendance,
   createChurch,
   createScreening,
+  deleteScreening,
   eventByToken,
   getEvent,
   joinChurch,
@@ -141,6 +143,56 @@ describe("whole-theatre booking", () => {
     expect(viewing.viewerIsHost).toBe(true);
   });
 
+  it("lets the host church delete a viewing", async () => {
+    const store = new MemoryStore();
+    const ada = await person(store, "Ada");
+    const ben = await person(store, "Ben");
+    await createChurch(store, ada, { name: "Ada Church", lat: 1.3, lng: 103.8 });
+    await createChurch(store, ben, { name: "Ben Church", lat: 1.35, lng: 103.85 });
+    const viewing = await createScreening(store, ada, {
+      startsAt: "2026-12-05T11:00:00.000Z",
+      timeZone: "Asia/Singapore",
+      capacity: 10,
+      visibility: "open",
+      cinema,
+    });
+    await store.saveParty({ id: "party-ben", eventId: viewing.id, userId: ben.id, churchId: null, members: 2, guests: 1 });
+    await expect(deleteScreening(store, ben, viewing.id)).rejects.toThrow(/host church/);
+    await deleteScreening(store, ada, viewing.id);
+    expect(await store.getScreening(viewing.id)).toBeNull();
+    expect(await store.listParties(viewing.id)).toEqual([]);
+    expect(await listEvents(store, null)).toEqual([]);
+  });
+
+  it("keeps reserved seats until the host accepts an update", async () => {
+    const store = new MemoryStore();
+    const ada = await person(store, "Ada");
+    const ben = await person(store, "Ben");
+    await createChurch(store, ada, { name: "Ada Church", lat: 1.3, lng: 103.8 });
+    const viewing = await createScreening(store, ada, {
+      startsAt: "2026-12-05T11:00:00.000Z",
+      timeZone: "Asia/Singapore",
+      capacity: 10,
+      visibility: "open",
+      cinema,
+    });
+    const asked = await addParty(store, ben, viewing.id, { members: 2, guests: 1 });
+    const partyId = asked.viewerPartyId ?? "";
+    const accepted = await decideAttendance(store, ada, viewing.id, partyId, "accept");
+    expect(accepted.taken).toBe(3);
+    const changed = await addParty(store, ben, viewing.id, { members: 6, guests: 0 });
+    expect(changed.taken).toBe(3);
+    expect(changed.parties.find((party) => party.id === partyId)?.proposedMembers).toBe(6);
+    const kept = await decideAttendance(store, ada, viewing.id, partyId, "declineUpdate");
+    expect(kept.taken).toBe(3);
+    expect(kept.parties.find((party) => party.id === partyId)?.proposedMembers).toBeNull();
+    await addParty(store, ben, viewing.id, { members: 4, guests: 1 });
+    const applied = await decideAttendance(store, ada, viewing.id, partyId, "accept");
+    expect(applied.taken).toBe(5);
+    const revoked = await decideAttendance(store, ada, viewing.id, partyId, "revoke");
+    expect(revoked.taken).toBe(0);
+  });
+
   it("refuses a booking from someone who does not own the church", async () => {
     const store = new MemoryStore();
     const ada = await person(store, "Ada");
@@ -234,6 +286,37 @@ describe("whole-theatre booking", () => {
       bookingStatus: "pending",
       cinema,
     });
+    const shared = await createScreening(store, ben, {
+      startsAt: "2026-12-05T14:00:00.000Z",
+      timeZone: "Asia/Singapore",
+      capacity: 120,
+      visibility: "open",
+      bookingStatus: "tbd",
+      screeningMode: "shared",
+      requestStatus: "sent",
+      expectedHeadcount: 45,
+      cinema,
+    });
+    expect(shared.screeningMode).toBe("shared");
+    expect(shared.expectedHeadcount).toBe(45);
+    await createScreening(store, ada, {
+      startsAt: "2026-12-05T11:00:00.000Z",
+      timeZone: "Asia/Singapore",
+      capacity: 20,
+      visibility: "open",
+      bookingStatus: "booked",
+      cinema,
+    });
+    await expect(
+      createScreening(store, ben, {
+        startsAt: "2026-12-19T14:00:00.000Z",
+        timeZone: "Asia/Singapore",
+        capacity: 20,
+        visibility: "open",
+        bookingStatus: "booked",
+        cinema,
+      }),
+    ).resolves.toMatchObject({ bookingStatus: "booked" });
     await expect(
       createScreening(store, ben, {
         startsAt: "2026-12-05T14:00:00.000Z",

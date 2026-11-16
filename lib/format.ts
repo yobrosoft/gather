@@ -1,4 +1,4 @@
-import type { BookingStatus } from "@/lib/types";
+import type { BookingStatus, RequestMode, RequestStatus } from "@/lib/types";
 
 export function localDateKey(iso: string, timeZone: string): string {
   const date = new Date(iso);
@@ -22,6 +22,17 @@ export function formatDuration(minutes: number): string {
   if (hours > 0 && rest > 0) return `${hours} hr ${rest} min`;
   if (hours > 0) return hours === 1 ? "1 hr" : `${hours} hr`;
   return `${rest} min`;
+}
+
+export function requestModeLabel(mode: RequestMode): string {
+  return mode === "shared" ? "Shared screening" : "Private screening";
+}
+
+export function requestStatusLabel(status: RequestStatus): string {
+  if (status === "accepted") return "Cinema said yes";
+  if (status === "declined") return "Cinema said no";
+  if (status === "needs_partner") return "Needs another church";
+  return "Waiting on the cinema";
 }
 
 export function bookingLabel(status: BookingStatus): string {

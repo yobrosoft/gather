@@ -183,8 +183,7 @@ export function VenuePicker({
         <BackButton onClick={onBack} />
         <h1 className="display mt-3 text-3xl">Choose a cinema</h1>
         <p className="muted mt-2 text-sm">
-          Nearby cinemas for {formatWhen(startsAt, timeZone)}. A pending or booked mark is a private booking already in Gather
-          that day, so it is not available. Confirm the hire with the cinema, then set the booking stage.
+          Nearby cinemas for {formatWhen(startsAt, timeZone)}. A cinema already booked in Gather that day is not available. Several churches can still request the same hall. Confirm the hire with the cinema, then set the booking stage.
         </p>
         {error ? (
           <p role="alert" className="alert mt-2 text-sm">

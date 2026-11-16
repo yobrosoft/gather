@@ -44,6 +44,21 @@ textarea {
   color: inherit;
 }
 
+button,
+a,
+summary,
+label,
+select,
+[role="tab"],
+[role="button"] {
+  cursor: pointer;
+}
+
+button:disabled,
+select:disabled {
+  cursor: not-allowed;
+}
+
 .eyebrow {
   margin: 0;
   color: var(--teal);
@@ -172,6 +187,13 @@ textarea {
   color: var(--teal-ink);
 }
 
+.btn-block {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  border-radius: 0.75rem;
+}
+
 .btn-plain {
   background: transparent;
   color: var(--ink);
@@ -223,7 +245,8 @@ textarea {
   white-space: nowrap;
 }
 
-.chip[aria-pressed="true"] {
+.chip[aria-pressed="true"],
+.chip[aria-selected="true"] {
   background: var(--teal);
   box-shadow: none;
   color: var(--teal-ink);

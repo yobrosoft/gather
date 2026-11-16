@@ -14,6 +14,10 @@ export function joinToken(): string {
   return token(16);
 }
 
+export function referenceCode(prefix: "R" | "E"): string {
+  return `${prefix}-${token(4)}`;
+}
+
 export function isJoinToken(value: string): boolean {
   return /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{16}$/.test(value);
 }

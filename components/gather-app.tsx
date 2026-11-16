@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { ChurchSheet } from "@/components/church-sheet";
-import { ScreeningMap, type MapPin } from "@/components/screening-map";
+import { CoordinatorScreen } from "@/components/coordinator-screen";
+import { FilmStory } from "@/components/film-story";
 import { SignInPanel } from "@/components/sign-in-panel";
 import { Button } from "@/components/ui";
 import { ViewingCard } from "@/components/viewing-card";
@@ -10,7 +10,6 @@ import { ViewingDetail } from "@/components/viewing-detail";
 import { ViewingForm, type ViewingDraft } from "@/components/viewing-form";
 import { VenuePicker } from "@/components/venue-picker";
 import { nextSaturdayEveningValue } from "@/lib/format";
-import { searchChurches } from "@/lib/places";
 import type { BookingStatus, EventView, PublicChurch, PublicConfig, PublicUser } from "@/lib/types";
 import { hostChurchOptions, matchesViewing } from "@/lib/viewing-filters";
 
@@ -33,17 +32,18 @@ type Me = { user: PublicUser; church: PublicChurch | null };
 type Screen =
   | { name: "list" }
   | { name: "detail"; id: string }
-  | { name: "signin"; joining: boolean; eventId?: string }
-  | { name: "church" }
-  | { name: "pins" }
+  | { name: "signin"; joining: boolean; eventId?: string; next?: "coordinate" | "shortlist" }
   | { name: "edit" }
-  | { name: "venue" };
+  | { name: "venue" }
+  | { name: "coordinate" }
+  | { name: "shortlist" }
+  | { name: "matches" };
 
 function blankDraft(): ViewingDraft {
   return {
     id: null,
-    title: "The Chosen",
-    durationMinutes: "60",
+    title: "The Chosen Crucifixion",
+    durationMinutes: "120",
     videoUrl: "",
     verses: [],
     when: nextSaturdayEveningValue(),
@@ -100,7 +100,6 @@ export function GatherApp({ config, joinToken }: { config: PublicConfig; joinTok
   const [query, setQuery] = useState("");
   const [churchFilter, setChurchFilter] = useState("");
   const [stageFilter, setStageFilter] = useState<"" | BookingStatus>("");
-  const [ownedOnly, setOwnedOnly] = useState(false);
 
   const refresh = useCallback(async () => {
     const [sessionRes, eventsRes] = await Promise.all([
@@ -169,8 +168,21 @@ export function GatherApp({ config, joinToken }: { config: PublicConfig; joinTok
   }, [screen.name, refresh]);
 
   const church = me?.church ?? null;
-  const isOwner = Boolean(church?.isOwner);
+
+  function startArrange() {
+    setError("");
+    if (!me) {
+      setScreen({ name: "signin", joining: false, next: "coordinate" });
+      return;
+    }
+    setScreen({ name: "coordinate" });
+  }
+
   const detailId = screen.name === "detail" ? screen.id : "";
+
+  useEffect(() => {
+    if (screen.name === "matches" || screen.name === "shortlist") setScreen({ name: "list" });
+  }, [screen.name]);
   const openEvent = events.find((event) => event.id === detailId) ?? (linked?.id === detailId ? linked : null);
 
   function openDetail(id: string) {
@@ -240,15 +252,25 @@ export function GatherApp({ config, joinToken }: { config: PublicConfig; joinTok
       setNote("Set the date before you choose a cinema.");
       return;
     }
-    if (!church) {
-      setNote("Claim your church before you set a venue.");
-      return;
-    }
     setNote("");
     setScreen({ name: "venue" });
   }
 
-  if (screen.name === "venue" && church && !config.mapsKey) {
+  const venueChurch: PublicChurch = church ?? {
+    id: "",
+    name: "",
+    placeId: "",
+    lat: device?.lat ?? 1.3521,
+    lng: device?.lng ?? 103.8198,
+    address: "",
+    isOwner: false,
+    inviteCode: "",
+    ownerInviteCode: "",
+    catchment: [],
+    fictional: false,
+  };
+
+  if (screen.name === "venue" && !config.mapsKey) {
     return (
       <main className="mx-auto min-h-dvh max-w-lg px-4 pt-6">
         <Button type="button" tone="plain" onClick={() => setScreen({ name: "edit" })}>
@@ -259,11 +281,11 @@ export function GatherApp({ config, joinToken }: { config: PublicConfig; joinTok
     );
   }
 
-  if (screen.name === "venue" && church) {
+  if (screen.name === "venue") {
     return (
       <VenuePicker
         mapsKey={config.mapsKey}
-        church={church}
+        church={venueChurch}
         startsAt={new Date(draft.when).toISOString()}
         timeZone={draft.timeZone}
         exceptId={draft.id}
@@ -277,58 +299,23 @@ export function GatherApp({ config, joinToken }: { config: PublicConfig; joinTok
     );
   }
 
-  if (screen.name === "pins" && church && config.mapsKey) {
-    const pins: MapPin[] = [
-      { id: "church", lat: church.lat, lng: church.lng, label: church.name, color: "#f4efe6", kind: "church", selected: true },
-      ...church.catchment.map((pin, index) => ({
-        id: `catchment:${index}`,
-        lat: pin.lat,
-        lng: pin.lng,
-        label: pin.label,
-        color: "#f4efe6",
-      })),
-    ];
-    return (
-      <div className="flex h-dvh flex-col">
-        <div className="relative min-h-0 flex-1">
-          <ScreeningMap
-            mapsKey={config.mapsKey}
-            center={{ lat: church.lat, lng: church.lng }}
-            zoom={13}
-            pins={pins}
-            onPick={() => undefined}
-            onMapClick={(point) => {
-              if (church.catchment.length >= 4) return;
-              void send("/api/churches", "PATCH", {
-                catchment: [...church.catchment, { ...point, label: "Members" }],
-              })
-                .then(() => refresh())
-                .catch((mapError: unknown) => setError(mapError instanceof Error ? mapError.message : "Could not save that pin."));
-            }}
-            onStatus={() => undefined}
-          />
-        </div>
-        <div className="sheet sheet-panel py-4">
-          <Button type="button" tone="plain" onClick={() => setScreen({ name: "church" })}>
-            Back to church
-          </Button>
-          <p className="muted mt-2 text-sm">Tap the map to drop a pin where members live. Up to four.</p>
-          {error ? <p className="alert mt-2 text-sm">{error}</p> : null}
-        </div>
-      </div>
-    );
-  }
-
   const now = Date.now();
   const isUpcoming = (event: EventView) => Date.parse(event.startsAt) >= now - 2 * 60 * 60 * 1000;
-  const filters = { query, churchId: churchFilter, stage: stageFilter, ownedOnly };
-  const filtering = Boolean(query.trim() || churchFilter || stageFilter || ownedOnly);
+  const filters = { query, churchId: churchFilter, stage: stageFilter, ownedOnly: false };
+  const filtering = Boolean(query.trim() || churchFilter || stageFilter);
   const filtered = events.filter((event) => matchesViewing(event, filters));
   const yours = filtered.filter((event) => event.viewerIsHost);
   const rest = filtered.filter((event) => !event.viewerIsHost);
   const upcoming = rest.filter(isUpcoming);
   const earlier = rest.filter((event) => !isUpcoming(event)).reverse();
   const churches = hostChurchOptions(events);
+
+  async function deleteViewing(id: string) {
+    await send(`/api/events/${id}`, "DELETE");
+    if (linked?.id === id) setLinked(null);
+    await refresh();
+    setScreen({ name: "list" });
+  }
 
   function editEvent(event: EventView) {
     setDraft(draftFromEvent(event));
@@ -338,19 +325,18 @@ export function GatherApp({ config, joinToken }: { config: PublicConfig; joinTok
 
   return (
     <main className="mx-auto min-h-dvh max-w-lg px-4 pb-16 pt-[max(1.25rem,env(safe-area-inset-top))]">
-      {screen.name === "list" ? (
+      {screen.name === "list" || screen.name === "coordinate" ? (
         <header className="mb-6 flex items-start justify-between gap-3">
           <div>
             <p className="eyebrow">Gather</p>
-            <h1 className="display mt-2 text-5xl">Viewings</h1>
+            <h1 className="display mt-2 text-5xl">The Chosen Crucifixion</h1>
             <span className="rule" />
+            {screen.name === "list" ? (
+              <p className="muted mt-3 text-sm">Attend a screening, or arrange one.</p>
+            ) : null}
           </div>
           <div className="flex shrink-0 gap-2">
-            {me ? (
-              <Button type="button" tone="plain" onClick={() => setScreen({ name: "church" })}>
-                Church
-              </Button>
-            ) : (
+            {me ? null : (
               <Button type="button" onClick={() => setScreen({ name: "signin", joining: false })}>
                 Sign in
               </Button>
@@ -382,6 +368,26 @@ export function GatherApp({ config, joinToken }: { config: PublicConfig; joinTok
         </p>
       ) : null}
 
+      {ready && (screen.name === "list" || screen.name === "coordinate") ? (
+        <div className="mb-4 flex flex-wrap gap-2">
+          <button type="button" className="chip" aria-pressed={screen.name === "list"} onClick={() => setScreen({ name: "list" })}>
+            Attend
+          </button>
+          <button type="button" className="chip" aria-pressed={screen.name === "coordinate"} onClick={startArrange}>
+            Arrange
+          </button>
+        </div>
+      ) : null}
+
+      {ready && screen.name === "coordinate" && me ? (
+        <CoordinatorScreen
+          mapsKey={config.mapsKey}
+          church={church}
+          coordinatorName={me.user.name}
+          coordinatorEmail={me.user.email}
+        />
+      ) : null}
+
       {ready && screen.name === "list" ? (
         <div className="space-y-4">
           {joinToken && !me ? (
@@ -393,13 +399,15 @@ export function GatherApp({ config, joinToken }: { config: PublicConfig; joinTok
               </Button>
             </div>
           ) : null}
+          <FilmStory />
+          <h2 className="eyebrow">Screenings you can attend</h2>
           <div className="space-y-2">
             <label className="block">
               <span className="sr-only">Search viewings</span>
               <input
                 className="field-input"
                 name="viewingSearch"
-                placeholder="Search by church, title, or verse"
+                placeholder="Search by host, title, or verse"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
               />
@@ -407,11 +415,11 @@ export function GatherApp({ config, joinToken }: { config: PublicConfig; joinTok
             <div className="flex gap-2">
               <select
                 className="field-input min-w-0 flex-1"
-                aria-label="Church"
+                aria-label="Host"
                 value={churchFilter}
                 onChange={(event) => setChurchFilter(event.target.value)}
               >
-                <option value="">All churches</option>
+                <option value="">All hosts</option>
                 {churches.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.name}
@@ -430,46 +438,15 @@ export function GatherApp({ config, joinToken }: { config: PublicConfig; joinTok
                 <option value="booked">Booked</option>
               </select>
             </div>
-            {isOwner || church ? (
-              <div className="flex gap-2">
-                {isOwner ? (
-                  <button type="button" className="chip" aria-pressed={ownedOnly} onClick={() => setOwnedOnly((value) => !value)}>
-                    Yours
-                  </button>
-                ) : null}
-                {church ? (
-                  <button
-                    type="button"
-                    className="chip"
-                    aria-pressed={churchFilter === church.id}
-                    onClick={() => setChurchFilter((value) => (value === church.id ? "" : church.id))}
-                  >
-                    {church.name}
-                  </button>
-                ) : null}
-              </div>
-            ) : null}
           </div>
           <p className="muted text-sm">
-            {filtering ? `${filtered.length} matching` : "Screenings you can attend. Sign in when you want to take seats."}
+            {filtering ? `${filtered.length} matching` : "Sign in when you want to take a seat."}
           </p>
-          {isOwner ? (
-            <Button
-              type="button"
-              onClick={() => {
-                setDraft(blankDraft());
-                setNote("");
-                setScreen({ name: "edit" });
-              }}
-            >
-              Add a viewing
-            </Button>
-          ) : null}
-          {events.length === 0 ? <p className="card muted text-sm">No viewings are listed yet.</p> : null}
+          {events.length === 0 ? <p className="card muted text-sm">No screenings are open yet.</p> : null}
           {events.length > 0 && filtered.length === 0 ? <p className="card muted text-sm">Nothing matches that search.</p> : null}
           {yours.length > 0 ? <h2 className="eyebrow pt-2">Your viewings</h2> : null}
           {yours.map((event) => (
-            <ViewingCard key={event.id} event={event} onEdit={() => editEvent(event)} />
+            <ViewingCard key={event.id} event={event} onEdit={() => editEvent(event)} onDelete={() => deleteViewing(event.id)} />
           ))}
           {upcoming.length > 0 && yours.length > 0 ? <h2 className="eyebrow pt-4">Other viewings</h2> : null}
           {upcoming.map((event) => (
@@ -497,7 +474,9 @@ export function GatherApp({ config, joinToken }: { config: PublicConfig; joinTok
             }
             void refresh().then(() => {
               if (joinToken) return;
-              setScreen({ name: "list" });
+              if (screen.next === "coordinate") setScreen({ name: "coordinate" });
+              else if (screen.next === "shortlist") setScreen({ name: "shortlist" });
+              else setScreen({ name: "list" });
             });
           }}
         />
@@ -516,6 +495,7 @@ export function GatherApp({ config, joinToken }: { config: PublicConfig; joinTok
             setNote("");
             setScreen({ name: "edit" });
           }}
+          onDelete={() => deleteViewing(openEvent.id)}
           onJoin={async (members, guests) => {
             const viaLink = Boolean(joinToken && linked?.id === openEvent.id);
             const payload = viaLink
@@ -555,37 +535,6 @@ export function GatherApp({ config, joinToken }: { config: PublicConfig; joinTok
         />
       ) : null}
 
-      {ready && screen.name === "church" && me ? (
-        <ChurchSheet
-          church={church}
-          isOwner={isOwner}
-          mapsKey={config.mapsKey}
-          onBack={() => setScreen({ name: "list" })}
-          onSearch={(query) => searchChurches(config.mapsKey, query, device ?? (church ? { lat: church.lat, lng: church.lng } : undefined))}
-          onPreview={() => undefined}
-          onLookup={async (placeId) => {
-            const payload = await send(`/api/churches/lookup?placeId=${encodeURIComponent(placeId)}`);
-            return payload.status ?? "unclaimed";
-          }}
-          onShowMap={church && config.mapsKey ? () => setScreen({ name: "pins" }) : undefined}
-          onCreate={async (input) => {
-            await send("/api/churches", "POST", input);
-            setError("");
-            setScreen({ name: "list" });
-            await refresh();
-          }}
-          onJoin={async (code) => {
-            await send("/api/churches/join", "POST", { code });
-            setError("");
-            setScreen({ name: "list" });
-            await refresh();
-          }}
-          onCatchment={async (catchment) => {
-            await send("/api/churches", "PATCH", { catchment });
-            await refresh();
-          }}
-        />
-      ) : null}
     </main>
   );
 }

@@ -38,6 +38,9 @@ export class FileStore extends MemoryStore {
       cinemas: parsed.cinemas ?? [],
       screenings: parsed.screenings ?? [],
       parties: parsed.parties ?? [],
+      requests: parsed.requests ?? [],
+      enquiries: parsed.enquiries ?? [],
+      followUps: parsed.followUps ?? [],
     });
     this.loaded = true;
   }
@@ -69,6 +72,10 @@ export class FileStore extends MemoryStore {
 
   override findUserBySub(sub: string) {
     return this.read(() => super.findUserBySub(sub));
+  }
+
+  override findUserByEmail(email: string) {
+    return this.read(() => super.findUserByEmail(email));
   }
 
   override saveUser(user: Parameters<MemoryStore["saveUser"]>[0]) {
@@ -127,6 +134,10 @@ export class FileStore extends MemoryStore {
     return this.change(() => super.saveScreening(screening));
   }
 
+  override deleteViewing(id: string) {
+    return this.change(() => super.deleteViewing(id));
+  }
+
   override listParties(eventId: string) {
     return this.read(() => super.listParties(eventId));
   }
@@ -141,5 +152,61 @@ export class FileStore extends MemoryStore {
 
   override deleteParty(id: string) {
     return this.change(() => super.deleteParty(id));
+  }
+
+  override listRequests() {
+    return this.read(() => super.listRequests());
+  }
+
+  override listRequestsForChurch(churchId: string) {
+    return this.read(() => super.listRequestsForChurch(churchId));
+  }
+
+  override listRequestsForEnquiry(enquiryId: string) {
+    return this.read(() => super.listRequestsForEnquiry(enquiryId));
+  }
+
+  override getRequest(id: string) {
+    return this.read(() => super.getRequest(id));
+  }
+
+  override findRequestByReference(reference: string) {
+    return this.read(() => super.findRequestByReference(reference));
+  }
+
+  override saveRequest(request: Parameters<MemoryStore["saveRequest"]>[0]) {
+    return this.change(() => super.saveRequest(request));
+  }
+
+  override listEnquiries() {
+    return this.read(() => super.listEnquiries());
+  }
+
+  override getEnquiry(id: string) {
+    return this.read(() => super.getEnquiry(id));
+  }
+
+  override findEnquiryByReference(reference: string) {
+    return this.read(() => super.findEnquiryByReference(reference));
+  }
+
+  override saveEnquiry(enquiry: Parameters<MemoryStore["saveEnquiry"]>[0]) {
+    return this.change(() => super.saveEnquiry(enquiry));
+  }
+
+  override commitEnquiry(parts: Parameters<MemoryStore["commitEnquiry"]>[0]) {
+    return this.change(() => super.commitEnquiry(parts));
+  }
+
+  override listFollowUps(eventId: string) {
+    return this.read(() => super.listFollowUps(eventId));
+  }
+
+  override findFollowUp(eventId: string, userId: string) {
+    return this.read(() => super.findFollowUp(eventId, userId));
+  }
+
+  override saveFollowUp(followUp: Parameters<MemoryStore["saveFollowUp"]>[0]) {
+    return this.change(() => super.saveFollowUp(followUp));
   }
 }

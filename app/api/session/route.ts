@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { clearSessionCookie, mintSession, sessionCookie, userFromDev, userFromGoogle, currentUser } from "@/lib/auth";
+import { clearSessionCookie, mintSession, sessionCookie, userFromDev, userFromGoogle, userFromPassword, currentUser } from "@/lib/auth";
 import { assertSameOrigin, fail, readBody } from "@/lib/http";
-import { devSessionInput, googleSessionInput, issueMessage } from "@/lib/schema";
+import { devSessionInput, googleSessionInput, issueMessage, passwordSessionInput } from "@/lib/schema";
 import { ServiceError, sessionView } from "@/lib/service";
 import { getStore } from "@/lib/store";
 
@@ -25,7 +25,9 @@ export async function POST(request: Request) {
     const user =
       body && typeof body === "object" && "credential" in body
         ? await userFromGoogle(googleCredential(body))
-        : await userFromDev(...devAccount(body));
+        : body && typeof body === "object" && "password" in body
+          ? await userFromPassword(passwordAccount(body))
+          : await userFromDev(...devAccount(body));
     const response = NextResponse.json(await sessionView(await getStore(), user));
     response.headers.set("Set-Cookie", sessionCookie(mintSession(user.id), request));
     return response;
@@ -49,6 +51,12 @@ function googleCredential(body: unknown): string {
   const parsed = googleSessionInput.safeParse(body);
   if (!parsed.success) throw new ServiceError(issueMessage(parsed.error), 400);
   return parsed.data.credential;
+}
+
+function passwordAccount(body: unknown) {
+  const parsed = passwordSessionInput.safeParse(body);
+  if (!parsed.success) throw new ServiceError(issueMessage(parsed.error), 400);
+  return parsed.data;
 }
 
 function devAccount(body: unknown): [string, string] {

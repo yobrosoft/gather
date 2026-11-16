@@ -2,7 +2,7 @@
 
 Gather opens on a list of viewings people can attend. Each listing shows a YouTube preview, the title, the duration, the Bible verses, and whether the booking is TBD, pending, or booked.
 
-Sign in to take seats. A church that nobody has claimed can be claimed, and that account becomes the owner. Owners add viewings and set the venue on a map of nearby cinemas. A cinema already pending or booked in Gather for that date is marked unavailable. The host church still books the theatre with the cinema. Seat counts are who is coming. Invites are Gather links (`/e/…`), not cinema links. An open viewing is on the list. A private viewing is for the host church, and anyone with the link can still take seats.
+Sign in to take seats. To arrange a screening, sign in and fill Hosted by on the Details step. The host still books the theatre with the cinema. Seat counts are who is coming. Invites are Gather links (`/e/…`), not cinema links. An open viewing is on the list. A private viewing stays off the list, and anyone with the link can still take seats.
 
 ## Run locally
 
@@ -17,9 +17,9 @@ Open http://127.0.0.1:3857
 
 Bible verses are read from the YouVersion Platform API. Put the app key from platform.youversion.com in `YVP_APP_KEY`. NIV, ESV, and the other translations show up after those licenses are accepted for that key. The wording on a listing is the text YouVersion returns, with that translation’s copyright.
 
-Sign-in is Google, the same button Waymark uses. `GOOGLE_CLIENT_ID` is the web client. Its JavaScript origins must include `http://localhost:3857`, `http://127.0.0.1:3857`, and `https://macmini.tail70bcc0.ts.net:3857`. Creating a church makes that account the owner. Owners share a join code so people can associate with the church, and a separate owner invite so another Google account can own it too. `GATHER_DEV_AUTH=1` is only a local fallback when no Google client is set.
+Sign-in is Google, the same button Waymark uses, or an email and password. `GOOGLE_CLIENT_ID` is the web client. Its JavaScript origins must include `http://localhost:3857`, `http://127.0.0.1:3857`, and `https://macmini.tail70bcc0.ts.net:3857`. `GATHER_DEV_AUTH=1` is only a local fallback when no Google client is set.
 
-Without `FIRESTORE_EMULATOR_HOST`, data is stored in `~/.local/share/gather/store.json`. Gather will not open Firestore against a live Google Cloud project, and it refuses the Waymark project id.
+Without `FIRESTORE_EMULATOR_HOST` or `GATHER_USE_FIRESTORE=live`, data is stored in `~/.local/share/gather/store.json`. Live Firestore is only for the Gather Cloud project. Gather refuses the Waymark project id.
 
 The Firestore emulator needs a Java runtime:
 

@@ -20,6 +20,8 @@ export function SignInPanel({
 }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [signup, setSignup] = useState(false);
   const [pending, setPending] = useState(false);
 
   return (
@@ -29,8 +31,8 @@ export function SignInPanel({
         <h1 className="display mt-2 text-4xl">{joining ? "Sign in to join" : "Sign in"}</h1>
         <p className="muted text-sm">
           {joining
-            ? "Sign in with Google to take seats. The cinema still handles tickets."
-            : "Sign in with Google to join a viewing, or claim a church that nobody owns yet."}
+            ? "Sign in to take seats. The cinema still handles tickets."
+            : "Use Google or an email and password to join a viewing, or arrange a screening."}
         </p>
       </div>
       {config.googleClientId ? (
@@ -54,6 +56,51 @@ export function SignInPanel({
           }}
         />
       ) : null}
+      <form
+        className="space-y-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setPending(true);
+          onError("");
+          void fetch("/api/session", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ email, password, name: signup ? name : undefined, signup }),
+          })
+            .then(async (response) => {
+              const body = (await response.json()) as { error?: string };
+              if (!response.ok) throw new Error(body.error || "Could not sign in.");
+              onSignedIn();
+            })
+            .catch((signInError: unknown) => onError(signInError instanceof Error ? signInError.message : "Could not sign in."))
+            .finally(() => setPending(false));
+        }}
+      >
+        {signup ? (
+          <Field label="Your name">
+            <input className={inputClass} name="name" autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} />
+          </Field>
+        ) : null}
+        <Field label="Email">
+          <input className={inputClass} name="email" type="email" autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} />
+        </Field>
+        <Field label="Password">
+          <input
+            className={inputClass}
+            name="password"
+            type="password"
+            autoComplete={signup ? "new-password" : "current-password"}
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+        </Field>
+        <Button type="submit" disabled={pending}>
+          {signup ? "Create account" : "Sign in with email"}
+        </Button>
+        <button type="button" className="link text-sm" onClick={() => setSignup((value) => !value)}>
+          {signup ? "Already have an account? Sign in" : "Create an account"}
+        </button>
+      </form>
       {config.devAuth && !config.googleClientId ? (
         <form
           className="space-y-3"

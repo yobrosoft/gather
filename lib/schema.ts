@@ -63,6 +63,8 @@ const legacyVerse = z
 const verseInput = z.union([scriptureSelection, legacyVerse]);
 
 const bookingStatusInput = z.enum(["tbd", "pending", "booked"]);
+const requestModeInput = z.enum(["private", "shared"]);
+const requestStatusInput = z.enum(["sent", "accepted", "declined", "needs_partner"]);
 
 export const screeningInput = z
   .object({
@@ -76,6 +78,9 @@ export const screeningInput = z
     capacity: z.number().int().min(1).max(2000),
     visibility: z.enum(["private", "open"]),
     cinema: cinemaInput.nullable().optional(),
+    screeningMode: requestModeInput.optional(),
+    requestStatus: requestStatusInput.optional(),
+    expectedHeadcount: z.number().int().min(1).max(5000).optional(),
   })
   .strict();
 
@@ -91,6 +96,97 @@ export const screeningPatchInput = z
     capacity: z.number().int().min(1).max(2000).optional(),
     visibility: z.enum(["private", "open"]).optional(),
     cinema: cinemaInput.nullable().optional(),
+    screeningMode: requestModeInput.optional(),
+    requestStatus: requestStatusInput.optional(),
+    expectedHeadcount: z.number().int().min(1).max(5000).optional(),
+  })
+  .strict();
+
+export const churchRequestInput = z
+  .object({
+    mode: requestModeInput,
+    expectedHeadcount: z.number().int().min(1).max(2000),
+    preferredDates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).min(1).max(3),
+    preferredTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+    cinema: cinemaInput.optional(),
+    cinemas: z.array(cinemaInput).min(1).max(6).optional(),
+    accessibilityNeeds: z.string().trim().max(500),
+    coordinatorName: z.string().trim().min(1).max(80),
+    coordinatorPhone: z.string().trim().max(40),
+    coordinatorEmail: z.string().trim().email().max(200),
+  })
+  .strict()
+  .refine((data) => Boolean(data.cinema) || Boolean(data.cinemas?.length), { message: "Add at least one cinema." });
+
+export const arrangeDraftInput = z
+  .object({
+    requestId: z.string().trim().min(1).max(80).optional(),
+    mode: requestModeInput,
+    expectedHeadcount: z.number().int().min(1).max(2000),
+    preferredDates: z.array(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).min(1).max(3),
+    preferredTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+    cinemas: z.array(cinemaInput).max(6),
+    candidates: z
+      .array(
+        z
+          .object({
+            cinemaId: z.string().trim().min(1).max(80),
+            status: z.enum(["considering", "enquired", "quoted", "unavailable", "chosen"]),
+            quote: z.string().trim().max(80),
+            note: z.string().trim().max(500).optional(),
+          })
+          .strict(),
+      )
+      .max(6)
+      .optional(),
+    accessibilityNeeds: z.string().trim().max(500),
+    coordinatorName: z.string().trim().min(1).max(80),
+    coordinatorPhone: z.string().trim().max(40),
+    coordinatorEmail: z.string().trim().email().max(200),
+    hostedBy: z.string().trim().max(80),
+  })
+  .strict();
+
+export const candidatePatchInput = z
+  .object({
+    cinemaId: z.string().trim().min(1).max(80),
+    status: z.enum(["considering", "enquired", "quoted", "unavailable", "chosen"]),
+    quote: z.string().trim().max(80),
+    note: z.string().trim().max(500).optional(),
+  })
+  .strict();
+
+export const enquiryPatchInput = z
+  .object({
+    proposedHall: z.string().trim().max(120).optional(),
+    proposedWhen: z.string().trim().max(40).optional(),
+    proposedTerms: z.string().trim().max(2000).optional(),
+    verifiedAvailability: z.boolean().optional(),
+    verifiedRights: z.boolean().optional(),
+    verifiedTerms: z.boolean().optional(),
+    simulate: z.boolean().optional(),
+  })
+  .strict();
+
+export const publishInput = z
+  .object({
+    publish: z.boolean(),
+  })
+  .strict();
+
+export const attendanceDecisionInput = z
+  .object({
+    action: z.enum(["accept", "declineUpdate", "revoke"]),
+  })
+  .strict();
+
+export const followUpInput = z
+  .object({
+    kind: z.enum(["discussion", "introduction", "none"]),
+    shareContact: z.boolean(),
+    name: z.string().trim().max(80).optional(),
+    email: z.string().trim().max(200).optional(),
+    phone: z.string().trim().max(40).optional(),
   })
   .strict();
 
@@ -105,6 +201,15 @@ export const devSessionInput = z
   .object({
     devName: z.string().trim().min(1).max(80),
     devEmail: z.string().trim().email().max(200),
+  })
+  .strict();
+
+export const passwordSessionInput = z
+  .object({
+    email: z.string().trim().email().max(200),
+    password: z.string().min(8).max(200),
+    name: z.string().trim().max(80).optional(),
+    signup: z.boolean(),
   })
   .strict();
 

@@ -1,7 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { bookingLabel, formatDuration, formatWhen } from "@/lib/format";
+import { bookingLabel, formatDuration, formatWhen, requestStatusLabel } from "@/lib/format";
 import type { BookingStatus, EventView } from "@/lib/types";
 
 const stageClass: Record<BookingStatus, string> = {
@@ -33,9 +34,11 @@ export function VideoPreview({ embedUrl, title }: { embedUrl: string | null; tit
   );
 }
 
-export function ViewingCard({ event, onEdit }: { event: EventView; onEdit?: () => void }) {
+export function ViewingCard({ event, onEdit, onDelete }: { event: EventView; onEdit?: () => void; onDelete?: () => Promise<void> }) {
   const duration = formatDuration(event.durationMinutes);
   const venue = event.cinema?.name ?? "Venue TBD";
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [pending, setPending] = useState(false);
   return (
     <article className="card space-y-4">
       <Link href={`/v/${event.id}`} className="block space-y-4 text-inherit no-underline">
@@ -63,6 +66,9 @@ export function ViewingCard({ event, onEdit }: { event: EventView; onEdit?: () =
         {[duration, formatWhen(event.startsAt, event.timeZone)].filter(Boolean).join(" · ")}
       </p>
       <p className="muted text-sm">
+        {event.screeningMode === "shared" ? "Shared" : "Private"} · {requestStatusLabel(event.requestStatus)}
+      </p>
+      <p className="muted text-sm">
         {venue}
         {event.cinema?.address ? ` · ${event.cinema.address}` : ""}
         <br />
@@ -76,6 +82,30 @@ export function ViewingCard({ event, onEdit }: { event: EventView; onEdit?: () =
           <button type="button" className="btn btn-plain" onClick={onEdit}>
             Edit
           </button>
+        ) : null}
+        {event.viewerIsHost && onDelete ? (
+          confirmDelete ? (
+            <>
+              <button
+                type="button"
+                className="btn btn-plain"
+                disabled={pending}
+                onClick={() => {
+                  setPending(true);
+                  void onDelete().finally(() => setPending(false));
+                }}
+              >
+                Delete this viewing
+              </button>
+              <button type="button" className="link text-sm" onClick={() => setConfirmDelete(false)}>
+                Keep it
+              </button>
+            </>
+          ) : (
+            <button type="button" className="btn btn-plain" onClick={() => setConfirmDelete(true)}>
+              Delete
+            </button>
+          )
         ) : null}
       </div>
     </article>

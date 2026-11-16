@@ -1,5 +1,17 @@
 import { churchOwnerIds } from "@/lib/owners";
-import type { BookingStatus, ChurchRecord, CinemaRecord, PartyRecord, ScreeningRecord, UserRecord, Verse } from "@/lib/types";
+import { withCandidates } from "@/lib/candidates";
+import type {
+  BookingStatus,
+  ChurchRecord,
+  ChurchRequestRecord,
+  CinemaRecord,
+  EnquiryRecord,
+  FollowUpRecord,
+  PartyRecord,
+  ScreeningRecord,
+  UserRecord,
+  Verse,
+} from "@/lib/types";
 
 export type StoreData = {
   users: UserRecord[];
@@ -7,10 +19,13 @@ export type StoreData = {
   cinemas: CinemaRecord[];
   screenings: ScreeningRecord[];
   parties: PartyRecord[];
+  requests: ChurchRequestRecord[];
+  enquiries: EnquiryRecord[];
+  followUps: FollowUpRecord[];
 };
 
 export function emptyData(): StoreData {
-  return { users: [], churches: [], cinemas: [], screenings: [], parties: [] };
+  return { users: [], churches: [], cinemas: [], screenings: [], parties: [], requests: [], enquiries: [], followUps: [] };
 }
 
 function copy<T>(value: T): T {
@@ -50,6 +65,14 @@ export function normalizeScreening(raw: ScreeningRecord): ScreeningRecord {
     durationMinutes: typeof raw.durationMinutes === "number" && raw.durationMinutes > 0 ? raw.durationMinutes : 0,
     videoUrl: typeof raw.videoUrl === "string" ? raw.videoUrl : "",
     verses: cleanVerses(raw.verses),
+    screeningMode: raw.screeningMode === "shared" || raw.screeningMode === "private" ? raw.screeningMode : raw.visibility === "open" ? "shared" : "private",
+    requestStatus:
+      raw.requestStatus === "accepted" || raw.requestStatus === "declined" || raw.requestStatus === "needs_partner" || raw.requestStatus === "sent"
+        ? raw.requestStatus
+        : bookingStatus === "booked"
+          ? "accepted"
+          : "sent",
+    expectedHeadcount: typeof raw.expectedHeadcount === "number" && raw.expectedHeadcount > 0 ? raw.expectedHeadcount : raw.capacity,
     bookingStatus,
     joinToken: raw.joinToken || "",
   };
@@ -62,6 +85,7 @@ function normalizeChurch(church: ChurchRecord): ChurchRecord {
     ownerIds,
     leaderUserId: church.leaderUserId || ownerIds[0] || "",
     ownerInviteCode: church.ownerInviteCode || "",
+    fictional: church.fictional === true,
   };
 }
 
@@ -80,7 +104,14 @@ export class MemoryStore {
   }
 
   replace(data: StoreData) {
-    this.data = copy(data);
+    const base = emptyData();
+    this.data = copy({
+      ...base,
+      ...data,
+      requests: data.requests ?? [],
+      enquiries: data.enquiries ?? [],
+      followUps: data.followUps ?? [],
+    });
   }
 
   async getUser(id: string) {
@@ -89,6 +120,11 @@ export class MemoryStore {
 
   async findUserBySub(sub: string) {
     return copy(this.data.users.find((user) => user.googleSub === sub) ?? null);
+  }
+
+  async findUserByEmail(email: string) {
+    const needle = email.trim().toLowerCase();
+    return copy(this.data.users.find((user) => user.email.toLowerCase() === needle) ?? null);
   }
 
   async saveUser(user: UserRecord) {
@@ -158,6 +194,17 @@ export class MemoryStore {
     upsert(this.data.screenings, screening);
   }
 
+  async deleteViewing(id: string) {
+    this.data.screenings = this.data.screenings.filter((screening) => screening.id !== id);
+    this.data.parties = this.data.parties.filter((party) => party.eventId !== id);
+    this.data.followUps = this.data.followUps.filter((followUp) => followUp.eventId !== id);
+    for (const enquiry of this.data.enquiries) {
+      if (enquiry.screeningId !== id) continue;
+      enquiry.screeningId = null;
+      if (enquiry.status === "confirmed") enquiry.status = "proposed";
+    }
+  }
+
   async listParties(eventId: string) {
     return copy(this.data.parties.filter((party) => party.eventId === eventId));
   }
@@ -172,5 +219,65 @@ export class MemoryStore {
 
   async deleteParty(id: string) {
     this.data.parties = this.data.parties.filter((party) => party.id !== id);
+  }
+
+  async listRequests() {
+    return copy(this.data.requests).map(withCandidates);
+  }
+
+  async listRequestsForChurch(churchId: string) {
+    return copy(this.data.requests.filter((request) => request.churchId === churchId)).map(withCandidates);
+  }
+
+  async listRequestsForEnquiry(enquiryId: string) {
+    return copy(this.data.requests.filter((request) => request.enquiryId === enquiryId)).map(withCandidates);
+  }
+
+  async getRequest(id: string) {
+    const found = this.data.requests.find((request) => request.id === id);
+    return found ? withCandidates(copy(found)) : null;
+  }
+
+  async findRequestByReference(reference: string) {
+    const found = this.data.requests.find((request) => request.reference === reference);
+    return found ? withCandidates(copy(found)) : null;
+  }
+
+  async saveRequest(request: ChurchRequestRecord) {
+    upsert(this.data.requests, request);
+  }
+
+  async listEnquiries() {
+    return copy(this.data.enquiries);
+  }
+
+  async getEnquiry(id: string) {
+    return copy(this.data.enquiries.find((enquiry) => enquiry.id === id) ?? null);
+  }
+
+  async findEnquiryByReference(reference: string) {
+    return copy(this.data.enquiries.find((enquiry) => enquiry.reference === reference) ?? null);
+  }
+
+  async saveEnquiry(enquiry: EnquiryRecord) {
+    upsert(this.data.enquiries, enquiry);
+  }
+
+  async commitEnquiry(parts: { enquiry: EnquiryRecord; request?: ChurchRequestRecord; screening?: ScreeningRecord }) {
+    upsert(this.data.enquiries, parts.enquiry);
+    if (parts.request) upsert(this.data.requests, parts.request);
+    if (parts.screening) upsert(this.data.screenings, parts.screening);
+  }
+
+  async listFollowUps(eventId: string) {
+    return copy(this.data.followUps.filter((followUp) => followUp.eventId === eventId));
+  }
+
+  async findFollowUp(eventId: string, userId: string) {
+    return copy(this.data.followUps.find((followUp) => followUp.eventId === eventId && followUp.userId === userId) ?? null);
+  }
+
+  async saveFollowUp(followUp: FollowUpRecord) {
+    upsert(this.data.followUps, followUp);
   }
 }

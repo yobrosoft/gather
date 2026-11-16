@@ -5,6 +5,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import path from "path";
 import { OAuth2Client } from "google-auth-library";
 import { newId } from "@/lib/ids";
+import { checkPassword, hashPassword } from "@/lib/password";
 import { ServiceError } from "@/lib/service";
 import { dataDir, getStore } from "@/lib/store";
 import type { UserRecord } from "@/lib/types";
@@ -53,7 +54,8 @@ export function readSessionUserId(token: string | undefined): string | null {
 }
 
 export function sessionCookie(token: string, request: Request): string {
-  const secure = request.url.startsWith("https://");
+  const forwarded = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const secure = forwarded === "https" || request.url.startsWith("https://");
   const parts = [
     `${COOKIE}=${token}`,
     "HttpOnly",
@@ -95,6 +97,67 @@ export async function userFromGoogle(credential: string): Promise<UserRecord> {
     if (error instanceof ServiceError) throw error;
     throw new ServiceError("Google sign-in did not complete.", 401);
   }
+}
+
+export async function userFromPassword(input: { email: string; password: string; name?: string; signup: boolean }): Promise<UserRecord> {
+  const email = input.email.trim().toLowerCase();
+  const store = await getStore();
+  const existing = await store.findUserByEmail(email);
+  if (input.signup) {
+    if (existing) throw new ServiceError("That email already has an account. Sign in instead.", 409);
+    const name = input.name?.trim();
+    if (!name) throw new ServiceError("Add your name.", 400);
+    const user = await upsertAccount(`password:${email}`, name, email);
+    await savePasswordHash(user.id, await hashPassword(input.password));
+    return user;
+  }
+  if (!existing) throw new ServiceError("Email or password is not right.", 401);
+  const stored = await passwordHashFor(existing.id);
+  if (!stored || !(await checkPassword(input.password, stored))) throw new ServiceError("Email or password is not right.", 401);
+  return existing;
+}
+
+function passwordFile(): string {
+  return path.join(dataDir(), "passwords.json");
+}
+
+function readPasswordHashes(): Record<string, string> {
+  const file = passwordFile();
+  if (!existsSync(file)) return {};
+  try {
+    const parsed = JSON.parse(readFileSync(file, "utf8")) as Record<string, string>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writePasswordHash(userId: string, hash: string) {
+  const hashes = readPasswordHashes();
+  hashes[userId] = hash;
+  mkdirSync(path.dirname(passwordFile()), { recursive: true, mode: 0o700 });
+  writeFileSync(passwordFile(), JSON.stringify(hashes), { mode: 0o600 });
+}
+
+function passwordsInFirestore(): boolean {
+  return process.env.GATHER_USE_FIRESTORE === "live" || Boolean(process.env.FIRESTORE_EMULATOR_HOST?.trim());
+}
+
+async function passwordHashFor(userId: string): Promise<string | undefined> {
+  if (!passwordsInFirestore()) return readPasswordHashes()[userId];
+  const { getFirestore } = await import("firebase-admin/firestore");
+  const snap = await getFirestore().collection("passwordHashes").doc(userId).get();
+  const hash = snap.get("hash");
+  return typeof hash === "string" ? hash : undefined;
+}
+
+async function savePasswordHash(userId: string, hash: string): Promise<void> {
+  if (!passwordsInFirestore()) {
+    writePasswordHash(userId, hash);
+    return;
+  }
+  const { getFirestore } = await import("firebase-admin/firestore");
+  await getFirestore().collection("passwordHashes").doc(userId).set({ hash });
 }
 
 export async function userFromDev(name: string, email: string): Promise<UserRecord> {

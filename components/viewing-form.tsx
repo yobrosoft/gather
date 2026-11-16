@@ -72,7 +72,7 @@ export function ViewingForm({
       <BackButton onClick={onBack} />
       <h1 className="display text-4xl">{draft.id ? "Edit viewing" : "Add a viewing"}</h1>
       <p className="muted text-sm">
-        Your church hosts the whole theatre. Set what is showing, then choose a cinema and how far the booking has got.
+        Set what is showing, then choose a cinema and how far the booking has got.
       </p>
       <Field label="What's showing">
         <input className={inputClass} value={draft.title} onChange={(event) => patch({ title: event.target.value })} />
@@ -157,7 +157,7 @@ export function ViewingForm({
         </label>
         <label className="flex gap-2">
           <input type="radio" name="visibility" checked={draft.visibility === "private"} onChange={() => patch({ visibility: "private" })} />
-          Private — your church, plus anyone with the Gather link
+          Private — only people with the Gather link
         </label>
       </fieldset>
       <Button type="button" disabled={pending} onClick={onSave}>

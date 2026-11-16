@@ -64,6 +64,10 @@ export function ViewingPage({ config, id }: { config: PublicConfig; id: string }
           onBack={() => router.push("/")}
           onSignIn={() => router.push(`/?join=${event.id}`)}
           onEdit={() => router.push(`/?edit=${event.id}`)}
+          onDelete={async () => {
+            await send(`/api/events/${event.id}`, "DELETE");
+            router.push("/");
+          }}
           onJoin={async (members, guests) => {
             const payload = await send(`/api/events/${event.id}/parties`, "POST", { members, guests });
             if (payload.event) setEvent(payload.event);

@@ -3,7 +3,7 @@ import { currentUser } from "@/lib/auth";
 import { assertSameOrigin, fail, readBody, requireUser } from "@/lib/http";
 import { issueMessage, screeningPatchInput } from "@/lib/schema";
 import { versesForStorage } from "@/lib/scripture";
-import { getEvent, ServiceError, updateScreening } from "@/lib/service";
+import { deleteScreening, getEvent, ServiceError, updateScreening } from "@/lib/service";
 import { getStore } from "@/lib/store";
 
 export const runtime = "nodejs";
@@ -17,6 +17,19 @@ export async function GET(request: Request, context: Context) {
     const store = await getStore();
     const user = await currentUser(request);
     return NextResponse.json({ event: await getEvent(store, user, id) });
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+export async function DELETE(request: Request, context: Context) {
+  try {
+    assertSameOrigin(request);
+    const { id } = await context.params;
+    const store = await getStore();
+    const user = await requireUser(request);
+    await deleteScreening(store, user, id);
+    return NextResponse.json({ ok: true });
   } catch (error) {
     return fail(error);
   }
