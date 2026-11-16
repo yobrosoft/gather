@@ -361,6 +361,12 @@ export function GatherApp({ config, joinToken }: { config: PublicConfig; joinTok
         </header>
       ) : null}
 
+      {screen.name === "list" || screen.name === "coordinate" ? (
+        <div className="mb-6">
+          <FilmStory />
+        </div>
+      ) : null}
+
       {!ready ? <p className="muted text-sm">Loading viewings…</p> : null}
       {error ? (
         <p role="alert" className="alert mb-3 text-sm">
@@ -399,7 +405,6 @@ export function GatherApp({ config, joinToken }: { config: PublicConfig; joinTok
               </Button>
             </div>
           ) : null}
-          <FilmStory />
           <h2 className="eyebrow">Screenings you can attend</h2>
           <div className="space-y-2">
             <label className="block">
